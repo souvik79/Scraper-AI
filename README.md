@@ -1,8 +1,8 @@
-# ScrapperAI
+# scraperAI
 
 **Prompt-driven web scraping powered by AI.** No selectors. No CSS paths. Just describe what you want in plain English.
 
-ScrapperAI uses a 3-phase pipeline — **Fetch**, **Understand**, **Extract** — to scrape any website intelligently.
+scraperAI uses a 3-phase pipeline — **Fetch**, **Understand**, **Extract** — to scrape any website intelligently.
 
 ```
 Fetch (ScraperAPI)  →  Understand (AI)  →  Extract (AI)  →  Structured JSON
@@ -96,11 +96,11 @@ Visit each product's detail page. Extract full specs:
 
 ```bash
 # Single-model mode (cloud LLM handles everything)
-scrapper-ai "https://example.com/catalog" prompts/my_scrape.txt \
+scraper-ai "https://example.com/catalog" prompts/my_scrape.txt \
   --provider anthropic -o data/output.json
 
 # Dual-model mode (Gemini understands pages, Anthropic extracts data)
-scrapper-ai "https://example.com/catalog" prompts/my_scrape.txt \
+scraper-ai "https://example.com/catalog" prompts/my_scrape.txt \
   --provider anthropic --processor gemini -o data/output.json
 ```
 
@@ -119,7 +119,7 @@ scrapper-ai "https://example.com/catalog" prompts/my_scrape.txt \
 ## CLI Reference
 
 ```
-scrapper-ai <url> <prompt> [options]
+scraper-ai <url> <prompt> [options]
 
 Arguments:
   url                   Starting URL to scrape
@@ -140,7 +140,7 @@ Options:
 ### Car Dealership (multi-level with detail pages)
 
 ```bash
-scrapper-ai "https://narrowpath.autos/inventory" prompts/cars_test.txt \
+scraper-ai "https://narrowpath.autos/inventory" prompts/cars_test.txt \
   --provider anthropic --processor gemini -o data/cars.json
 ```
 
@@ -169,13 +169,13 @@ Output:
 ### Ollama Model Search (single page, no detail pages)
 
 ```bash
-scrapper-ai "https://ollama.com/search?q=scrapping" prompts/ollama_models.txt \
+scraper-ai "https://ollama.com/search?q=scrapping" prompts/ollama_models.txt \
   --provider anthropic -o data/ollama_models.json
 ```
 
 ## Writing Good Prompts
 
-The prompt is the brain of ScrapperAI. Tips:
+The prompt is the brain of scraperAI. Tips:
 
 1. **Use few-shot JSON examples** — Show the exact field names and formats you want
 2. **Describe each level** — Step 1 for listing pages, Step 2 for detail pages
@@ -210,9 +210,48 @@ Dual model (--provider + --processor):
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical details.
 
+## Limitations & Troubleshooting
+
+scraperAI depends on ScraperAPI for fetching and AI models for extraction. Both can fail in predictable ways.
+
+### Fetch failures
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `FetchError` / empty HTML | Bot protection (Cloudflare, Akamai) blocking ScraperAPI | ScraperAPI handles most bot protection, but some sites block all proxies. Try adding `--auto-scroll` or check ScraperAPI dashboard for errors. |
+| HTML returned but content missing | SPA loads data via XHR after initial render | JS rendering is on by default (`--no-render` disables it). If content still missing, the site may require authentication or specific cookies. |
+| Different HTML than browser | Site serves different content to headless browsers | Some sites detect headless Chrome. ScraperAPI rotates user agents, but geo-restricted content may need a specific country proxy (not yet supported). |
+| Timeout errors | Page takes too long to render | Increase timeout via `SCRAPER_TIMEOUT` in `.env` (default: 60s). Heavy SPAs with many API calls may need 90-120s. |
+
+### Extraction failures
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Empty `data` array | AI couldn't match your prompt to the page content | Run with `-v` to see the HTML/markdown being sent. Update your prompt to match the actual page structure. |
+| Missing fields | Data exists on page but AI didn't extract it | Add explicit field descriptions and few-shot examples to your prompt. Dual-model mode (`--processor gemini`) often captures more content. |
+| Hallucinated data | AI invented data not on the page | Lower temperature (already 0.0 by default). Use more specific prompts. Check that the fetched HTML actually contains the expected content. |
+| `ExtractionError: Failed to parse` | AI returned malformed JSON | Retry — LLMs occasionally produce invalid JSON. If persistent, try a different provider or simplify your prompt's JSON schema. |
+
+### Crawl issues
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Crawl never stops | AI keeps finding pagination links | Use `--max-pages N` to set a safety limit. Also add "Do NOT follow pagination" in your prompt for test runs. |
+| Detail data not merging | Detail URL doesn't match `detail_url` field in listing data | Ensure your prompt extracts `detail_url` with the exact URL format the site uses (trailing slashes, query params, etc.). |
+| Duplicate items | Same item appears on multiple pagination pages | Deduplication by `detail_url` is automatic for Level 1. If items lack a `detail_url`, duplicates may appear. |
+| 413 / rate limit errors | Provider's token or request limit exceeded | Use Gemini for Phase 2 (250K TPM). Groq free tier (6K TPM) is too small for most HTML pages. Check provider logs with `-v`. |
+
+### Sites that don't work well
+
+- **Login-required pages** — ScraperAPI doesn't support authenticated sessions. You'd need to pass cookies manually (not yet supported).
+- **CAPTCHAs** — ScraperAPI solves some CAPTCHAs, but interactive ones (drag-to-verify, puzzle) will fail.
+- **Infinite scroll without pagination URLs** — Use `--auto-scroll` to trigger scroll-based loading. Works for 3 scroll cycles; deeply nested infinite scroll may need multiple runs.
+- **Iframed content** — Content inside `<iframe>` tags is stripped by the cleaner. Cross-origin iframe content isn't accessible via the main page fetch.
+- **PDF / non-HTML content** — Only HTML pages are supported. PDFs, images, or API endpoints returning raw JSON are not processed.
+
 ## Cost
 
-ScrapperAI is designed to be cheap:
+scraperAI is designed to be cheap:
 
 | Component | Cost |
 |---|---|
@@ -222,6 +261,58 @@ ScrapperAI is designed to be cheap:
 | ScraperAPI | Free tier: 1000 calls/month |
 
 A full 24-car scrape with detail pages (~27 pages) costs approximately **$0.10-0.15** with dual-model mode (Gemini + Claude).
+
+## Development
+
+### Install dev dependencies
+
+```bash
+pip install -e ".[dev,all]"
+```
+
+### Linting
+
+Uses [Ruff](https://docs.astral.sh/ruff/) for linting and import sorting (replaces flake8, isort, pyupgrade).
+
+```bash
+# Check for issues
+ruff check src/ tests/
+
+# Auto-fix what it can
+ruff check src/ tests/ --fix
+```
+
+Rules enabled: pycodestyle, pyflakes, isort, pep8-naming, pyupgrade, flake8-bugbear, flake8-simplify, ruff-specific. Configuration is in `pyproject.toml` under `[tool.ruff]`.
+
+### Testing
+
+Uses [pytest](https://docs.pytest.org/) with 98 tests across 7 modules.
+
+```bash
+# Run all tests
+pytest
+
+# Verbose output
+pytest -v
+
+# Run a specific test file
+pytest tests/test_cleaner.py
+
+# Run a specific test
+pytest tests/test_providers.py::TestProviderInit::test_gemini_requires_api_key
+```
+
+Test coverage:
+
+| Module | Tests |
+|---|---|
+| `test_cleaner.py` | HTML cleaning, tag stripping, chunking |
+| `test_config.py` | Settings defaults, env loading, validation |
+| `test_models.py` | PageResult, CrawlResult serialization |
+| `test_providers.py` | Provider registry, base class, API key checks |
+| `test_fetcher.py` | ScraperAPI headers, scroll, error handling |
+| `test_crawler.py` | BFS crawl, pagination, detail merge, dual-model |
+| `test_cli.py` | Argument parsing, file output, prompt loading |
 
 ## License
 

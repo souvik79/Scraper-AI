@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import importlib
 
-from scrapper_ai.config import Settings
-from scrapper_ai.providers.base import AIProvider
+from scraper_ai.config import Settings
+from scraper_ai.providers.base import AIProvider
 
 _PROVIDER_REGISTRY: dict[str, str] = {
-    "openai": "scrapper_ai.providers.openai.OpenAIProvider",
-    "anthropic": "scrapper_ai.providers.anthropic.AnthropicProvider",
-    "ollama": "scrapper_ai.providers.ollama.OllamaProvider",
-    "groq": "scrapper_ai.providers.groq.GroqProvider",
-    "gemini": "scrapper_ai.providers.gemini.GeminiProvider",
+    "openai": "scraper_ai.providers.openai.OpenAIProvider",
+    "anthropic": "scraper_ai.providers.anthropic.AnthropicProvider",
+    "ollama": "scraper_ai.providers.ollama.OllamaProvider",
+    "groq": "scraper_ai.providers.groq.GroqProvider",
+    "gemini": "scraper_ai.providers.gemini.GeminiProvider",
 }
 
 

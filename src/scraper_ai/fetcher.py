@@ -13,7 +13,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from scrapper_ai.config import Settings
+from scraper_ai.config import Settings
 
 logger = logging.getLogger(__name__)
 

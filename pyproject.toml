@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scrapper-ai"
+name = "scraper-ai"
 version = "0.1.0"
 description = "Prompt-driven web scraping agent powered by AI"
 readme = "README.md"
@@ -33,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-scrapper-ai = "scrapper_ai.cli:main"
+scraper-ai = "scraper_ai.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -41,3 +41,26 @@ where = ["src"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by line-length setting)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["scraper_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

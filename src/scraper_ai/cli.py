@@ -1,4 +1,4 @@
-"""Command-line interface for ScrapperAI."""
+"""Command-line interface for ScraperAI."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ import json
 import logging
 import sys
 
-from scrapper_ai.config import Settings
-from scrapper_ai.crawler import crawl
-from scrapper_ai.providers import list_providers
+from scraper_ai.config import Settings
+from scraper_ai.crawler import crawl
+from scraper_ai.providers import list_providers
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="scrapper-ai",
+        prog="scraper-ai",
         description="Prompt-driven web scraping agent powered by AI.",
     )
     parser.add_argument("url", help="URL to start scraping from")

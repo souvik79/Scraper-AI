@@ -13,12 +13,12 @@ import sys
 import time
 from urllib.parse import urlparse
 
-from scrapper_ai.cleaner import chunk_text, clean_html
-from scrapper_ai.config import Settings
-from scrapper_ai.fetcher import FetchError, fetch_html
-from scrapper_ai.models import CrawlResult
-from scrapper_ai.providers import get_provider
-from scrapper_ai.providers.base import AIProvider, ExtractionError
+from scraper_ai.cleaner import chunk_text, clean_html
+from scraper_ai.config import Settings
+from scraper_ai.fetcher import FetchError, fetch_html
+from scraper_ai.models import CrawlResult
+from scraper_ai.providers import get_provider
+from scraper_ai.providers.base import AIProvider, ExtractionError
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,7 @@ def crawl(
 
     # Header
     _out(f"\n{LINE}")
-    _out("  ScrapperAI - Agentic Web Scraper")
+    _out("  ScraperAI - Agentic Web Scraper")
     _out(LINE)
     _out(f"  URL:      {start_url}")
     prompt_display = user_prompt[:50] + "..." if len(user_prompt) > 50 else user_prompt

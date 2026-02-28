@@ -7,9 +7,9 @@ import time
 
 from openai import OpenAI
 
-from scrapper_ai.config import Settings
-from scrapper_ai.models import PageResult
-from scrapper_ai.providers.base import AIProvider, ExtractionError
+from scraper_ai.config import Settings
+from scraper_ai.models import PageResult
+from scraper_ai.providers.base import AIProvider, ExtractionError
 
 logger = logging.getLogger(__name__)
 

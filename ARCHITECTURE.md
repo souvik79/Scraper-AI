@@ -2,11 +2,11 @@
 
 ## Pipeline Overview
 
-ScrapperAI uses a 3-phase pipeline to turn any website into structured JSON data.
+scraperAI uses a 3-phase pipeline to turn any website into structured JSON data.
 
 ```
                     ┌─────────────────────────────────────────────────────────┐
-                    │                   ScrapperAI Pipeline                    │
+                    │                   scraperAI Pipeline                    │
                     │                                                         │
   URL + Prompt ───▶ │  Phase 1       Phase 2          Phase 3                 │ ───▶ JSON
                     │  ┌───────┐    ┌──────────┐     ┌──────────┐            │
@@ -191,8 +191,8 @@ Step 2 - Detail pages:                       ← Next level instructions
 ## File Structure
 
 ```
-ScrapperAI/
-├── src/scrapper_ai/
+scraperAI/
+├── src/scraper_ai/
 │   ├── cli.py              CLI entry point, argument parsing
 │   ├── config.py           Settings from .env (API keys, models, limits)
 │   ├── cleaner.py          Minimal regex HTML cleanup (no BS4)
@@ -217,7 +217,7 @@ ScrapperAI/
 
 ```
 User runs:
-  scrapper-ai "https://site.com" prompts/cars.txt --provider anthropic --processor ollama
+  scraper-ai "https://site.com" prompts/cars.txt --provider anthropic --processor ollama
 
 1. cli.py
    ├── Parses arguments

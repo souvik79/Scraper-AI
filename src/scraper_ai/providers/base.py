@@ -6,8 +6,8 @@ import json
 import logging
 from abc import ABC, abstractmethod
 
-from scrapper_ai.config import Settings
-from scrapper_ai.models import PageResult
+from scraper_ai.config import Settings
+from scraper_ai.models import PageResult
 
 logger = logging.getLogger(__name__)
 
