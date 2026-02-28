@@ -1,0 +1,47 @@
+You are scraping a car dealership inventory website.
+
+Step 1 - Inventory pages:
+Go to the inventory page. You will find car listings displayed as cards.
+Each card shows the car's basic info and a link to its detail page.
+The page has pagination at the bottom — follow all pagination links
+until you reach the last page. Collect ALL cars across all pages.
+
+For each car, extract the data in this exact JSON format:
+{
+  "year": 2020,
+  "make": "Toyota",
+  "model": "4Runner",
+  "price": "$34,995.00",
+  "detail_url": "https://narrowpath.autos/inventory/40449/view/1657/Birmingham-AL/2020-Toyota-4Runner"
+}
+
+Put all pagination links in next_urls.
+Put each car's detail page URL in detail_urls.
+
+Step 2 - Detail pages:
+Visit each car's detail page. The detail page has:
+- A photo gallery/carousel with multiple car images. Look for all image URLs
+  in ![alt](url) markdown patterns, <img> tags, or any URLs ending in
+  .jpg, .jpeg, .png, .webp. Collect ALL image URLs, not just the first one.
+- A specs/details section with VIN, transmission, colors, drivetrain, fuel type,
+  mileage, engine, and other vehicle information.
+
+Extract all available data from the detail page in this JSON format:
+{
+  "year": 2020,
+  "make": "Toyota",
+  "model": "4Runner",
+  "price": "$34,995.00",
+  "detail_url": "https://narrowpath.autos/inventory/40449/view/1657/Birmingham-AL/2020-Toyota-4Runner",
+  "images": ["https://example.com/img1.jpg", "https://example.com/img2.jpg"],
+  "vin": "JTEBU5JR8L5123456",
+  "transmission": "Automatic",
+  "exterior_color": "Midnight Black",
+  "interior_color": "Black",
+  "drivetrain": "4WD",
+  "fuel_type": "Gasoline",
+  "city_mileage": "16 MPG",
+  "highway_mileage": "19 MPG",
+  "engine": "4.0L V6",
+  "mileage": "45,000"
+}

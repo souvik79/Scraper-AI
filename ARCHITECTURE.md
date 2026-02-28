@@ -123,6 +123,70 @@ Matching is done by URL: `parent.detail_url == visited_url`.
 
 ---
 
+## Resilience
+
+scraperAI is designed for large crawls (50-100+ pages). Several mechanisms prevent data loss and handle transient failures.
+
+### Phase 3 Retry with Fallback
+
+When the LLM returns malformed JSON for a chunk, the pipeline retries with exponential backoff before falling back to an alternate provider.
+
+```
+Chunk extraction attempt:
+
+  Primary (Claude) ──▶ Success? ──▶ Return result
+       │
+       ▼ (ExtractionError)
+  Wait 2s, retry ──▶ Success? ──▶ Return result
+       │
+       ▼ (ExtractionError)
+  Wait 4s, retry ──▶ Success? ──▶ Return result
+       │
+       ▼ (all retries exhausted)
+  Fallback (GPT-4o) ──▶ Success? ──▶ Return result
+       │
+       ▼ (also fails)
+  Skip chunk (None)
+```
+
+| Setting | Default | Env var |
+|---|---|---|
+| Retry attempts | 2 | `EXTRACTION_RETRIES` |
+| Fallback provider | None | `FALLBACK_PROVIDER` |
+
+The `_extract_chunk()` helper in `crawler.py` encapsulates this logic.
+
+### Request Pacing
+
+Consecutive ScraperAPI fetches are paced with a configurable delay to respect rate limits.
+
+| Setting | Default | Env var |
+|---|---|---|
+| Fetch delay | 1.0s | `FETCH_DELAY` |
+
+Note: Gemini and Groq providers already have built-in per-call delays (7s and 15s respectively) to stay within free-tier limits. The fetch delay is separate — it only applies to ScraperAPI page fetches.
+
+### Crawl Cache (Resume)
+
+An optional JSON file cache stores per-URL results so interrupted crawls can resume without re-fetching already-processed pages.
+
+```
+Page fetch:
+  Cache has URL? ──▶ Yes ──▶ Return cached result (skip fetch + extraction)
+       │
+       ▼ No
+  Fetch ──▶ Extract ──▶ Save to cache ──▶ Return result
+```
+
+Cache files are stored in `.scraper_cache/` (configurable), keyed by SHA-256 hash of the URL. Each entry is a standalone JSON file containing the extracted data, pagination URLs, and detail URLs.
+
+| CLI flag | Effect |
+|---|---|
+| `--cache` | Enable caching (opt-in) |
+| `--clear-cache` | Clear all cached entries before starting |
+
+---
+
 ## Single-Model vs Dual-Model
 
 ```
@@ -198,13 +262,16 @@ scraperAI/
 │   ├── cleaner.py          Minimal regex HTML cleanup (no BS4)
 │   ├── crawler.py          Multi-level BFS crawl loop + merge logic
 │   ├── fetcher.py          ScraperAPI HTML fetching
+│   ├── cache.py            JSON file cache for crawl resume
 │   ├── models.py           Pydantic models (PageResult, CrawlResult)
 │   └── providers/
 │       ├── __init__.py     Provider registry + lazy factory
 │       ├── base.py         Abstract base, system prompts, JSON parsing
 │       ├── anthropic.py    Claude Haiku provider
-│       ├── ollama.py       Local Ollama SLM provider
-│       └── openai.py       GPT-4o provider
+│       ├── openai.py       GPT-4o provider
+│       ├── gemini.py       Google Gemini provider
+│       ├── groq.py         Groq (Llama) provider
+│       └── ollama.py       Local Ollama SLM provider
 ├── prompts/                User prompt files (.txt)
 ├── data/                   Output JSON files
 ├── .env                    API keys and configuration
@@ -217,41 +284,59 @@ scraperAI/
 
 ```
 User runs:
-  scraper-ai "https://site.com" prompts/cars.txt --provider anthropic --processor ollama
+  scraper-ai "https://site.com" prompts/cars.txt --provider anthropic --processor ollama \
+    --fallback openai --cache --delay 2.0
 
 1. cli.py
    ├── Parses arguments
    ├── Loads settings from .env
    ├── Reads prompt from prompts/cars.txt
+   ├── Clears cache if --clear-cache
    └── Calls crawler.crawl()
 
-2. crawler.py — Level 1 (Listing Pages)
+2. crawler.py — Setup
+   ├── Creates primary extractor (anthropic)
+   ├── Creates processor (ollama)
+   ├── Creates fallback extractor (openai) if --fallback
+   └── Creates CrawlCache if --cache
+
+3. crawler.py — Level 1 (Listing Pages)
    ├── Queue: [https://site.com]
    │
    ├── For each URL in queue:
+   │   ├── [cache check]   → cache hit? → return cached result, skip fetch
+   │   ├── [pacing]        → sleep(fetch_delay) between fetches
    │   ├── fetcher.py      → ScraperAPI → raw HTML (87KB)
    │   ├── cleaner.py      → regex strip → cleaned HTML (15KB)
    │   ├── ollama.py       → SLM understand_page() → markdown (5KB)
-   │   ├── anthropic.py    → LLM analyze_page() → PageResult
+   │   ├── _extract_chunk() → LLM analyze_page() with retry + fallback
+   │   │   ├── Try primary (anthropic) up to 3 attempts (2s, 4s backoff)
+   │   │   ├── If all fail → try fallback (openai) once
+   │   │   └── If fallback fails → skip chunk
+   │   ├── PageResult:
    │   │   ├── data: [{year, make, model, price, detail_url}, ...]
    │   │   ├── next_urls: [page2, page3]          → add to queue
    │   │   └── detail_urls: [car1, car2, ...]      → save for Level 2
+   │   ├── [cache save]    → save result for resume
    │   └── Dedup items by detail_url
    │
    └── All pagination exhausted → 24 cars collected
 
-3. crawler.py — Level 2 (Detail Pages)
+4. crawler.py — Level 2 (Detail Pages)
    ├── Queue: [car1_url, car2_url, ..., car24_url]
    │
    ├── For each URL:
+   │   ├── [cache check]   → cache hit? → return cached result
+   │   ├── [pacing]        → sleep(fetch_delay)
    │   ├── fetcher.py      → ScraperAPI → raw HTML
    │   ├── cleaner.py      → regex strip
    │   ├── ollama.py       → SLM → markdown with ALL images
-   │   ├── anthropic.py    → LLM → PageResult with enriched data
+   │   ├── _extract_chunk() → LLM → PageResult with retry + fallback
+   │   ├── [cache save]    → save result
    │   └── Merge into parent: parent.update(detail_data)
    │
    └── All detail pages done → 24 fully enriched cars
 
-4. cli.py
+5. cli.py
    └── Writes JSON to data/cars.json
 ```

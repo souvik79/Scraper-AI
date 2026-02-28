@@ -298,7 +298,7 @@ Rules enabled: pycodestyle, pyflakes, isort, pep8-naming, pyupgrade, flake8-bugb
 
 ### Testing
 
-Uses [pytest](https://docs.pytest.org/) with 98 tests across 7 modules.
+Uses [pytest](https://docs.pytest.org/) with 121 tests across 8 modules.
 
 ```bash
 # Run all tests
@@ -319,12 +319,13 @@ Test coverage:
 | Module | Tests |
 |---|---|
 | `test_cleaner.py` | HTML cleaning, tag stripping, chunking |
-| `test_config.py` | Settings defaults, env loading, validation |
+| `test_config.py` | Settings defaults, env loading, retry/cache/pacing config |
 | `test_models.py` | PageResult, CrawlResult serialization |
 | `test_providers.py` | Provider registry, base class, API key checks |
 | `test_fetcher.py` | ScraperAPI headers, scroll, error handling |
-| `test_crawler.py` | BFS crawl, pagination, detail merge, dual-model |
-| `test_cli.py` | Argument parsing, file output, prompt loading |
+| `test_crawler.py` | BFS crawl, pagination, detail merge, dual-model, retry/fallback |
+| `test_cli.py` | Argument parsing, file output, prompt loading, resilience flags |
+| `test_cache.py` | CrawlCache put/get, clear, corruption handling |
 
 ## License
 
