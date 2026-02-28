@@ -1,8 +1,8 @@
-# scraperAI
+# ScraperAI
 
 **Prompt-driven web scraping powered by AI.** No selectors. No CSS paths. Just describe what you want in plain English.
 
-scraperAI uses a 3-phase pipeline — **Fetch**, **Understand**, **Extract** — to scrape any website intelligently.
+ScraperAI uses a 3-phase pipeline — **Fetch**, **Understand**, **Extract** — to scrape any website intelligently.
 
 ```
 Fetch (ScraperAPI)  →  Understand (AI)  →  Extract (AI)  →  Structured JSON
@@ -149,30 +149,26 @@ Options:
 
 ## Examples
 
-### Car Dealership (multi-level with detail pages)
+### Product Catalog (multi-level with detail pages)
 
 ```bash
-scraper-ai "https://narrowpath.autos/inventory" prompts/cars_test.txt \
-  --provider anthropic --processor gemini -o data/cars.json
+scraper-ai "https://example.com/catalog" prompts/my_scrape.txt \
+  --provider anthropic --processor gemini -o data/products.json
 ```
 
 Output:
 ```json
 {
-  "pages_crawled": 3,
+  "pages_crawled": 4,
   "data": [
     {
-      "year": 2020,
-      "make": "Toyota",
-      "model": "4Runner",
-      "price": "$34,995.00",
-      "images": ["https://...img1", "https://...img2", "...71 total images"],
-      "vin": "JTEBU5JR7L5756242",
-      "transmission": "Auto",
-      "exterior_color": "BLACK",
-      "drivetrain": "4WD",
-      "fuel_type": "Gas",
-      "mileage": "141,960"
+      "name": "Wireless Headphones",
+      "price": "$79.99",
+      "detail_url": "https://example.com/product/42",
+      "images": ["https://...img1.jpg", "https://...img2.jpg"],
+      "description": "Noise-cancelling over-ear headphones with 30h battery...",
+      "sku": "WH-42",
+      "category": "Electronics"
     }
   ]
 }
@@ -187,7 +183,7 @@ scraper-ai "https://ollama.com/search?q=scrapping" prompts/ollama_models.txt \
 
 ## Writing Good Prompts
 
-The prompt is the brain of scraperAI. Tips:
+The prompt is the brain of ScraperAI. Tips:
 
 1. **Use few-shot JSON examples** — Show the exact field names and formats you want
 2. **Describe each level** — Step 1 for listing pages, Step 2 for detail pages
@@ -224,7 +220,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical details.
 
 ## Limitations & Troubleshooting
 
-scraperAI depends on ScraperAPI for fetching and AI models for extraction. Both can fail in predictable ways.
+ScraperAI depends on ScraperAPI for fetching and AI models for extraction. Both can fail in predictable ways.
 
 ### Fetch failures
 
@@ -263,7 +259,7 @@ scraperAI depends on ScraperAPI for fetching and AI models for extraction. Both 
 
 ## Cost
 
-scraperAI is designed to be cheap:
+ScraperAI is designed to be cheap:
 
 | Component | Cost |
 |---|---|
@@ -272,7 +268,7 @@ scraperAI is designed to be cheap:
 | Claude Haiku (Phase 3) | ~$0.005/page |
 | ScraperAPI | Free tier: 1000 calls/month |
 
-A full 24-car scrape with detail pages (~27 pages) costs approximately **$0.10-0.15** with dual-model mode (Gemini + Claude).
+A full product catalog scrape with 24 detail pages (~27 pages total) costs approximately **$0.10-0.15** with dual-model mode (Gemini + Claude).
 
 ## Development
 

@@ -2,11 +2,11 @@
 
 ## Pipeline Overview
 
-scraperAI uses a 3-phase pipeline to turn any website into structured JSON data.
+ScraperAI uses a 3-phase pipeline to turn any website into structured JSON data.
 
 ```
                     ┌─────────────────────────────────────────────────────────┐
-                    │                   scraperAI Pipeline                    │
+                    │                   ScraperAI Pipeline                    │
                     │                                                         │
   URL + Prompt ───▶ │  Phase 1       Phase 2          Phase 3                 │ ───▶ JSON
                     │  ┌───────┐    ┌──────────┐     ┌──────────┐            │
@@ -69,7 +69,7 @@ The crawler uses Breadth-First Search (BFS) — process all pages at one level b
 Level 1: Listing Pages (BFS with pagination)
 ┌──────────┐     ┌──────────┐     ┌──────────┐
 │  Page 1  │────▶│  Page 2  │────▶│  Page 3  │    next_urls (pagination)
-│ 8 cars   │     │ 8 cars   │     │ 8 cars   │
+│ 8 items  │     │ 8 items  │     │ 8 items  │
 └────┬─────┘     └────┬─────┘     └────┬─────┘
      │                │                │
      └────────────────┴────────────────┘
@@ -77,11 +77,11 @@ Level 1: Listing Pages (BFS with pagination)
               24 detail_urls
                       │
                       ▼
-Level 2: Detail Pages (one per car)
+Level 2: Detail Pages (one per product)
 ┌──────────┐ ┌──────────┐ ┌──────────┐     ┌──────────┐
-│  Car 1   │ │  Car 2   │ │  Car 3   │ ... │  Car 24  │
+│Product 1 │ │Product 2 │ │Product 3 │ ... │Product 24│
 │ +images  │ │ +images  │ │ +images  │     │ +images  │
-│ +VIN     │ │ +VIN     │ │ +VIN     │     │ +VIN     │
+│ +sku     │ │ +sku     │ │ +sku     │     │ +sku     │
 │ +specs   │ │ +specs   │ │ +specs   │     │ +specs   │
 └──────────┘ └──────────┘ └──────────┘     └──────────┘
       │            │            │                │
@@ -91,7 +91,7 @@ Level 2: Detail Pages (one per car)
                          │
                          ▼
                  Final JSON output
-              (24 fully enriched cars)
+            (24 fully enriched products)
 ```
 
 ### URL Routing
@@ -101,22 +101,22 @@ The AI returns two types of URLs per page:
 | Field | Purpose | When processed |
 |---|---|---|
 | `next_urls` | Pagination links (page 2, page 3, ...) | Immediately (same level, BFS queue) |
-| `detail_urls` | Item detail pages (car 1, car 2, ...) | After current level completes (next level) |
+| `detail_urls` | Item detail pages (product 1, product 2, ...) | After current level completes (next level) |
 
 The user's prompt tells the AI which URLs go where:
-> "Put pagination links in next_urls. Put each car's detail page URL in detail_urls."
+> "Put pagination links in next_urls. Put product detail URLs in detail_urls."
 
 ### Merge Logic
 
 When a detail page is processed, its extracted data is merged into the parent item:
 
 ```
-Parent (Level 1):   { year: 2020, make: "Toyota", price: "$34,995", detail_url: "..." }
+Parent (Level 1):   { name: "Wireless Headphones", price: "$79.99", detail_url: "..." }
                                          +
-Detail (Level 2):   { images: [...67 photos], vin: "JTEB...", transmission: "Auto" }
+Detail (Level 2):   { images: ["img1.jpg", "img2.jpg"], sku: "WH-42", description: "..." }
                                          =
-Merged result:      { year: 2020, make: "Toyota", price: "$34,995", detail_url: "...",
-                      images: [...67 photos], vin: "JTEB...", transmission: "Auto" }
+Merged result:      { name: "Wireless Headphones", price: "$79.99", detail_url: "...",
+                      images: ["img1.jpg", "img2.jpg"], sku: "WH-42", description: "..." }
 ```
 
 Matching is done by URL: `parent.detail_url == visited_url`.
@@ -125,7 +125,7 @@ Matching is done by URL: `parent.detail_url == visited_url`.
 
 ## Resilience
 
-scraperAI is designed for large crawls (50-100+ pages). Several mechanisms prevent data loss and handle transient failures.
+ScraperAI is designed for large crawls (50-100+ pages). Several mechanisms prevent data loss and handle transient failures.
 
 ### Phase 3 Retry with Fallback
 
@@ -221,9 +221,8 @@ Step 1 - Listing pages:                     ← Navigation instructions
 
   Few-shot JSON example:                     ← CRITICAL: exact field names + formats
   {
-    "year": 2020,
-    "make": "Toyota",
-    "price": "$34,995.00",
+    "name": "Example Product",
+    "price": "$29.99",
     "detail_url": "https://..."
   }
 
@@ -235,17 +234,16 @@ Step 2 - Detail pages:                       ← Next level instructions
 
   Few-shot JSON example:                     ← Complete merged shape
   {
-    "year": 2020,
-    "make": "Toyota",
-    "price": "$34,995.00",
+    "name": "Example Product",
+    "price": "$29.99",
     "images": ["https://..."],
-    "vin": "JTEBU5JR8L5123456"
+    "sku": "ABC-123"
   }
 ```
 
 ### Key Principles
 
-1. **Few-shot examples are mandatory** — The AI needs to see exact field names (`year` not `Year`), exact formats (`"$34,995.00"` not `34995`), and the complete output shape
+1. **Few-shot examples are mandatory** — The AI needs to see exact field names (`name` not `Name`), exact formats (`"$29.99"` not `29.99`), and the complete output shape
 2. **Be explicit about levels** — "Step 1" for listings, "Step 2" for details. The crawler tells the AI which step it's on
 3. **Describe the page visually** — "Cards with basic info", "Photo gallery/carousel", "Specs table"
 4. **Route URLs explicitly** — "Put pagination links in next_urls. Put detail page URLs in detail_urls."
@@ -255,7 +253,7 @@ Step 2 - Detail pages:                       ← Next level instructions
 ## File Structure
 
 ```
-scraperAI/
+ScraperAI/
 ├── src/scraper_ai/
 │   ├── cli.py              CLI entry point, argument parsing
 │   ├── config.py           Settings from .env (API keys, models, limits)
@@ -284,59 +282,59 @@ scraperAI/
 
 ```
 User runs:
-  scraper-ai "https://site.com" prompts/cars.txt --provider anthropic --processor ollama \
-    --fallback openai --cache --delay 2.0
+  scraper-ai "https://example.com/catalog" prompts/my_scrape.txt \
+    --provider anthropic --processor gemini --fallback openai --cache --delay 2.0
 
 1. cli.py
    ├── Parses arguments
    ├── Loads settings from .env
-   ├── Reads prompt from prompts/cars.txt
+   ├── Reads prompt from prompts/my_scrape.txt
    ├── Clears cache if --clear-cache
    └── Calls crawler.crawl()
 
 2. crawler.py — Setup
    ├── Creates primary extractor (anthropic)
-   ├── Creates processor (ollama)
+   ├── Creates processor (gemini)
    ├── Creates fallback extractor (openai) if --fallback
    └── Creates CrawlCache if --cache
 
 3. crawler.py — Level 1 (Listing Pages)
-   ├── Queue: [https://site.com]
+   ├── Queue: [https://example.com/catalog]
    │
    ├── For each URL in queue:
    │   ├── [cache check]   → cache hit? → return cached result, skip fetch
    │   ├── [pacing]        → sleep(fetch_delay) between fetches
    │   ├── fetcher.py      → ScraperAPI → raw HTML (87KB)
    │   ├── cleaner.py      → regex strip → cleaned HTML (15KB)
-   │   ├── ollama.py       → SLM understand_page() → markdown (5KB)
+   │   ├── gemini.py       → processor understand_page() → markdown (5KB)
    │   ├── _extract_chunk() → LLM analyze_page() with retry + fallback
    │   │   ├── Try primary (anthropic) up to 3 attempts (2s, 4s backoff)
    │   │   ├── If all fail → try fallback (openai) once
    │   │   └── If fallback fails → skip chunk
    │   ├── PageResult:
-   │   │   ├── data: [{year, make, model, price, detail_url}, ...]
+   │   │   ├── data: [{name, price, detail_url}, ...]
    │   │   ├── next_urls: [page2, page3]          → add to queue
-   │   │   └── detail_urls: [car1, car2, ...]      → save for Level 2
+   │   │   └── detail_urls: [product1, product2, ...]  → save for Level 2
    │   ├── [cache save]    → save result for resume
    │   └── Dedup items by detail_url
    │
-   └── All pagination exhausted → 24 cars collected
+   └── All pagination exhausted → 24 products collected
 
 4. crawler.py — Level 2 (Detail Pages)
-   ├── Queue: [car1_url, car2_url, ..., car24_url]
+   ├── Queue: [product1_url, product2_url, ..., product24_url]
    │
    ├── For each URL:
    │   ├── [cache check]   → cache hit? → return cached result
    │   ├── [pacing]        → sleep(fetch_delay)
    │   ├── fetcher.py      → ScraperAPI → raw HTML
    │   ├── cleaner.py      → regex strip
-   │   ├── ollama.py       → SLM → markdown with ALL images
+   │   ├── gemini.py       → processor → markdown with ALL images
    │   ├── _extract_chunk() → LLM → PageResult with retry + fallback
    │   ├── [cache save]    → save result
    │   └── Merge into parent: parent.update(detail_data)
    │
-   └── All detail pages done → 24 fully enriched cars
+   └── All detail pages done → 24 fully enriched products
 
 5. cli.py
-   └── Writes JSON to data/cars.json
+   └── Writes JSON to data/products.json
 ```
