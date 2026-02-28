@@ -11,12 +11,14 @@ from __future__ import annotations
 import logging
 import sys
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
+from scraper_ai.cache import CrawlCache
 from scraper_ai.cleaner import chunk_text, clean_html
 from scraper_ai.config import Settings
 from scraper_ai.fetcher import FetchError, fetch_html
-from scraper_ai.models import CrawlResult
+from scraper_ai.models import CrawlResult, PageResult
 from scraper_ai.providers import get_provider
 from scraper_ai.providers.base import AIProvider, ExtractionError
 
@@ -47,6 +49,48 @@ def _elapsed(t: float) -> str:
     return f"{secs / 60:.1f}m"
 
 
+def _extract_chunk(
+    chunk: str,
+    chunk_idx: int,
+    total_chunks: int,
+    extractor: AIProvider,
+    fallback: AIProvider | None,
+    user_prompt: str,
+    page_url: str,
+    settings: Settings,
+) -> PageResult | None:
+    """Try extracting from a chunk with retries and optional provider fallback."""
+    max_attempts = settings.extraction_retries + 1
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return extractor.analyze_page(chunk, user_prompt, page_url)
+        except ExtractionError as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                wait = 2 ** attempt
+                _out(f"  [!] Chunk {chunk_idx}/{total_chunks} attempt {attempt} failed — retrying in {wait}s")
+                logger.warning(
+                    "Chunk %d/%d attempt %d failed: %s — retrying in %ds",
+                    chunk_idx, total_chunks, attempt, exc, wait,
+                )
+                time.sleep(wait)
+
+    if fallback is not None:
+        _out(f"  [!] Chunk {chunk_idx}/{total_chunks}: trying fallback provider...")
+        try:
+            result = fallback.analyze_page(chunk, user_prompt, page_url)
+            _out(f"  [!] Chunk {chunk_idx}/{total_chunks}: fallback succeeded")
+            return result
+        except ExtractionError as exc:
+            last_error = exc
+
+    _out(f"  [!] Chunk {chunk_idx}/{total_chunks}: all attempts failed: {last_error}")
+    logger.warning("Chunk %d/%d: all attempts failed: %s", chunk_idx, total_chunks, last_error)
+    return None
+
+
 def _fetch_and_analyze(
     url: str,
     extractor: AIProvider,
@@ -57,11 +101,21 @@ def _fetch_and_analyze(
     settings: Settings,
     start_url: str,
     visited: set[str],
+    cache: CrawlCache | None = None,
+    fallback: AIProvider | None = None,
 ):
     """3-phase pipeline for a single URL. Returns (data, pagination_urls, detail_urls)."""
-    page_data = []
-    pagination_urls = []
-    detail_urls = []
+    page_data: list[dict] = []
+    pagination_urls: list[str] = []
+    detail_urls: list[str] = []
+
+    # Check cache first
+    if cache and cache.has(url):
+        cached = cache.get(url)
+        if cached is not None:
+            _out("  [cache hit] Using cached result")
+            return cached["data"], cached["pagination_urls"], cached["detail_urls"]
+
     dual_mode = processor is not None
 
     total_steps = 4 if dual_mode else 3
@@ -120,41 +174,54 @@ def _fetch_and_analyze(
     for i, chunk in enumerate(chunks):
         t0 = time.time()
         logger.info("Phase 3 chunk %d/%d (%d chars)", i + 1, len(chunks), len(chunk))
-        try:
-            result = extractor.analyze_page(chunk, user_prompt, url)
-            page_data.extend(result.data)
 
-            new_pagination = [
-                u for u in result.next_urls
-                if u not in visited and _same_domain(u, start_url)
-            ]
-            pagination_urls.extend(new_pagination)
+        result = _extract_chunk(
+            chunk, i + 1, len(chunks), extractor, fallback,
+            user_prompt, url, settings,
+        )
 
-            new_details = [
-                u for u in result.detail_urls
-                if u not in visited and _same_domain(u, start_url)
-            ]
-            detail_urls.extend(new_details)
-
-            _out(f"             done ({_elapsed(t0)})")
-            _out(f"  {THIN}")
-            _out(f"  Results:  {len(result.data)} items extracted")
-            if new_pagination:
-                _out(f"  Next:     {len(new_pagination)} pagination links")
-            if new_details:
-                _out(f"  Details:  {len(new_details)} detail URLs to visit later")
-            if result.summary:
-                _out(f"  Summary:  {result.summary}")
-            _out(f"  {THIN}")
-
-            logger.info(
-                "Found %d items, %d pagination, %d detail URLs. Summary: %s",
-                len(result.data), len(new_pagination), len(new_details), result.summary,
-            )
-        except ExtractionError as exc:
+        if result is None:
             _out(f"             failed ({_elapsed(t0)})")
-            _out(f"  [!] Extraction failed: {exc}")
-            logger.warning("Extraction failed for chunk %d: %s", i + 1, exc)
+            continue
+
+        page_data.extend(result.data)
+
+        new_pagination = [
+            u for u in result.next_urls
+            if u not in visited and _same_domain(u, start_url)
+        ]
+        pagination_urls.extend(new_pagination)
+
+        new_details = [
+            u for u in result.detail_urls
+            if u not in visited and _same_domain(u, start_url)
+        ]
+        detail_urls.extend(new_details)
+
+        _out(f"             done ({_elapsed(t0)})")
+        _out(f"  {THIN}")
+        _out(f"  Results:  {len(result.data)} items extracted")
+        if new_pagination:
+            _out(f"  Next:     {len(new_pagination)} pagination links")
+        if new_details:
+            _out(f"  Details:  {len(new_details)} detail URLs to visit later")
+        if result.summary:
+            _out(f"  Summary:  {result.summary}")
+        _out(f"  {THIN}")
+
+        logger.info(
+            "Found %d items, %d pagination, %d detail URLs. Summary: %s",
+            len(result.data), len(new_pagination), len(new_details), result.summary,
+        )
+
+    # Save to cache after successful extraction
+    if cache:
+        cache.put(url, {
+            "url": url,
+            "data": page_data,
+            "pagination_urls": pagination_urls,
+            "detail_urls": detail_urls,
+        })
 
     return page_data, pagination_urls, detail_urls
 
@@ -183,6 +250,11 @@ def crawl(
     processor_name = processor_name or settings.processor_provider or None
     processor = get_provider(processor_name, settings) if processor_name else None
 
+    fallback_name = settings.fallback_provider or None
+    fallback = get_provider(fallback_name, settings) if fallback_name else None
+
+    cache = CrawlCache(Path(settings.cache_dir)) if settings.cache_enabled else None
+
     visited: set[str] = set()
     all_data: list[dict] = []
     total_pages = 0
@@ -200,6 +272,10 @@ def crawl(
         _out(f"  Phase 3:  {provider_name} (LLM)")
     else:
         _out(f"  Provider: {provider_name}")
+    if fallback_name:
+        _out(f"  Fallback: {fallback_name}")
+    if cache:
+        _out(f"  Cache:    enabled ({settings.cache_dir})")
     _out(LINE)
 
     level = 1
@@ -223,6 +299,10 @@ def crawl(
                 logger.debug("Skipping off-domain URL: %s", url)
                 continue
 
+            # Pace requests to avoid hitting ScraperAPI rate limits
+            if total_pages > 0 and settings.fetch_delay > 0:
+                time.sleep(settings.fetch_delay)
+
             visited.add(url)
             total_pages += 1
             page_in_level += 1
@@ -242,6 +322,7 @@ def crawl(
             page_data, pagination_urls, detail_urls = _fetch_and_analyze(
                 url, extractor, provider_name, processor, processor_name,
                 effective_prompt, settings, start_url, visited,
+                cache=cache, fallback=fallback,
             )
 
             if level > 1 and page_data:

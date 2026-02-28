@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,6 +18,22 @@ from scraper_ai.providers.base import (
     AIProvider,
     ExtractionError,
 )
+
+
+def _ensure_google_genai_mock():
+    """Install a mock for google.genai if the real package isn't available."""
+    try:
+        from google import genai  # noqa: F401
+    except (ImportError, ModuleNotFoundError):
+        google_mod = ModuleType("google")
+        genai_mod = MagicMock()
+        google_mod.genai = genai_mod  # type: ignore[attr-defined]
+        sys.modules.setdefault("google", google_mod)
+        sys.modules.setdefault("google.genai", genai_mod)
+        types_mod = MagicMock()
+        sys.modules.setdefault("google.genai.types", types_mod)
+        # Force re-import of the provider module so it picks up the mock
+        sys.modules.pop("scraper_ai.providers.gemini", None)
 
 
 class TestProviderRegistry:
@@ -133,6 +152,7 @@ class TestProviderInit:
             get_provider("groq", s)
 
     def test_gemini_requires_api_key(self):
+        _ensure_google_genai_mock()
         s = Settings(scraper_api_key="test", gemini_api_key="")
         with pytest.raises(ValueError, match="GEMINI_API_KEY"):
             get_provider("gemini", s)
@@ -147,5 +167,6 @@ class TestProviderInit:
         assert provider.max_chunk_chars == 12_000
 
     def test_gemini_max_chunk_chars(self, settings):
+        _ensure_google_genai_mock()
         provider = get_provider("gemini", settings)
         assert provider.max_chunk_chars == 500_000

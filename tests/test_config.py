@@ -77,3 +77,36 @@ class TestSettings:
     def test_scraper_timeout_default(self):
         s = Settings(scraper_api_key="test")
         assert s.scraper_timeout == 60
+
+    def test_extraction_retries_default(self):
+        s = Settings(scraper_api_key="test")
+        assert s.extraction_retries == 2
+
+    def test_fallback_provider_default(self):
+        s = Settings(scraper_api_key="test")
+        assert s.fallback_provider == ""
+
+    def test_fetch_delay_default(self):
+        s = Settings(scraper_api_key="test")
+        assert s.fetch_delay == 1.0
+
+    def test_cache_defaults(self):
+        s = Settings(scraper_api_key="test")
+        assert s.cache_enabled is False
+        assert s.cache_dir == ".scraper_cache"
+
+    def test_from_env_reads_retry_and_cache_settings(self):
+        env = {
+            "SCRAPER_API_KEY": "test-key",
+            "EXTRACTION_RETRIES": "3",
+            "FALLBACK_PROVIDER": "openai",
+            "FETCH_DELAY": "2.5",
+            "SCRAPER_CACHE_DIR": "/tmp/my_cache",
+        }
+        with patch.dict("os.environ", env, clear=False), \
+             patch("scraper_ai.config.load_dotenv"):
+            s = Settings.from_env()
+            assert s.extraction_retries == 3
+            assert s.fallback_provider == "openai"
+            assert s.fetch_delay == 2.5
+            assert s.cache_dir == "/tmp/my_cache"

@@ -25,6 +25,9 @@ The AI handles pagination, detail pages, and multi-level crawling automatically 
 - **Single-model mode** — Use one provider for everything (skip Phase 2)
 - **Image discovery** — Finds images hidden in JavaScript galleries, CSS `background-image`, carousels
 - **Data merging** — Detail page data automatically merged into parent listing items
+- **Retry + fallback** — Per-chunk retry with exponential backoff; automatic failover to a backup provider
+- **Crawl cache** — Resume interrupted crawls without re-fetching already-processed pages
+- **Request pacing** — Configurable delay between fetches to respect rate limits
 - **6 providers** — Anthropic Claude, OpenAI GPT-4o, Google Gemini, Groq, Ollama (local), mix & match
 
 ## Quick Start
@@ -55,6 +58,11 @@ GEMINI_API_KEY=your_gemini_key        # Recommended — free, fast, large contex
 DEFAULT_PROVIDER=anthropic
 CLAUDE_MODEL=claude-haiku-4-5-20251001
 GEMINI_MODEL=gemini-2.5-flash
+
+# Resilience (optional)
+EXTRACTION_RETRIES=2              # retry attempts per chunk (default: 2)
+FALLBACK_PROVIDER=openai          # try this provider if primary fails
+FETCH_DELAY=1.0                   # seconds between page fetches
 ```
 
 ### 3. Write a prompt
@@ -128,7 +136,11 @@ Arguments:
 Options:
   -p, --provider        AI provider for extraction: anthropic, openai, gemini, groq, ollama
   --processor           AI provider for page understanding (dual-model mode)
+  --fallback            Fallback provider if primary extraction fails (e.g. openai)
   --max-pages N         Safety limit on pages to crawl (default: 100)
+  --delay SECONDS       Seconds between page fetches (default: 1.0)
+  --cache               Enable URL result caching for resume on interrupted crawls
+  --clear-cache         Clear the cache before starting
   --auto-scroll         Enable infinite scroll handling
   --no-render           Disable JavaScript rendering
   -o, --output FILE     Output file path (default: stdout)
@@ -230,7 +242,7 @@ scraperAI depends on ScraperAPI for fetching and AI models for extraction. Both 
 | Empty `data` array | AI couldn't match your prompt to the page content | Run with `-v` to see the HTML/markdown being sent. Update your prompt to match the actual page structure. |
 | Missing fields | Data exists on page but AI didn't extract it | Add explicit field descriptions and few-shot examples to your prompt. Dual-model mode (`--processor gemini`) often captures more content. |
 | Hallucinated data | AI invented data not on the page | Lower temperature (already 0.0 by default). Use more specific prompts. Check that the fetched HTML actually contains the expected content. |
-| `ExtractionError: Failed to parse` | AI returned malformed JSON | Retry — LLMs occasionally produce invalid JSON. If persistent, try a different provider or simplify your prompt's JSON schema. |
+| `ExtractionError: Failed to parse` | AI returned malformed JSON | Automatic retry (2 attempts by default). Add `--fallback openai` to try a second provider. If persistent, simplify your prompt's JSON schema. |
 
 ### Crawl issues
 

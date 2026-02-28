@@ -80,6 +80,34 @@ class TestBuildParser:
         ])
         assert args.verbose is True
 
+    def test_fallback_flag(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "https://example.com", "test", "--fallback", "openai"
+        ])
+        assert args.fallback == "openai"
+
+    def test_delay_flag(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "https://example.com", "test", "--delay", "2.5"
+        ])
+        assert args.delay == 2.5
+
+    def test_cache_flag(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "https://example.com", "test", "--cache"
+        ])
+        assert args.cache is True
+
+    def test_clear_cache_flag(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "https://example.com", "test", "--clear-cache"
+        ])
+        assert args.clear_cache is True
+
     def test_default_values(self):
         parser = build_parser()
         args = parser.parse_args(["https://example.com", "test"])
@@ -90,6 +118,10 @@ class TestBuildParser:
         assert args.no_render is False
         assert args.output is None
         assert args.verbose is False
+        assert args.fallback is None
+        assert args.delay is None
+        assert args.cache is False
+        assert args.clear_cache is False
 
 
 class TestMain:

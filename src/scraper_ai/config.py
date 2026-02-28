@@ -49,6 +49,17 @@ class Settings:
     max_pages: int = 100
     temperature: float = 0.0
 
+    # Retry & fallback
+    extraction_retries: int = 2      # retry attempts per chunk (0 = no retry)
+    fallback_provider: str = ""      # e.g. "openai"; empty = no fallback
+
+    # Request pacing
+    fetch_delay: float = 1.0         # seconds between consecutive ScraperAPI fetches
+
+    # Cache for resume
+    cache_enabled: bool = False      # opt-in via --cache flag
+    cache_dir: str = ".scraper_cache"
+
     @classmethod
     def from_env(cls) -> Settings:
         _load_env()
@@ -70,4 +81,8 @@ class Settings:
             gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             default_provider=os.getenv("DEFAULT_PROVIDER", "ollama"),
             processor_provider=os.getenv("PROCESSOR_PROVIDER", ""),
+            extraction_retries=int(os.getenv("EXTRACTION_RETRIES", "2")),
+            fallback_provider=os.getenv("FALLBACK_PROVIDER", ""),
+            fetch_delay=float(os.getenv("FETCH_DELAY", "1.0")),
+            cache_dir=os.getenv("SCRAPER_CACHE_DIR", ".scraper_cache"),
         )

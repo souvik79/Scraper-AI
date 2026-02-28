@@ -52,6 +52,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable JavaScript rendering",
     )
     parser.add_argument(
+        "--fallback",
+        choices=list_providers(),
+        default=None,
+        help="Fallback AI provider if primary extraction fails (e.g. openai)",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=None,
+        help="Seconds between page fetches (default: 1.0)",
+    )
+    parser.add_argument(
+        "--cache",
+        action="store_true",
+        help="Enable URL result caching for resume on interrupted crawls",
+    )
+    parser.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear the cache before starting",
+    )
+    parser.add_argument(
         "-o", "--output",
         default=None,
         help="Output file path (default: stdout)",
@@ -83,9 +105,22 @@ def main(argv: list[str] | None = None) -> int:
         overrides["auto_scroll"] = True
     if args.no_render:
         overrides["render_js"] = False
+    if args.fallback:
+        overrides["fallback_provider"] = args.fallback
+    if args.delay is not None:
+        overrides["fetch_delay"] = args.delay
+    if args.cache:
+        overrides["cache_enabled"] = True
     if overrides:
         from dataclasses import replace
         settings = replace(settings, **overrides)
+
+    if args.clear_cache:
+        from pathlib import Path
+
+        from scraper_ai.cache import CrawlCache
+        CrawlCache(Path(settings.cache_dir)).clear()
+        print("Cache cleared.", file=sys.stderr)
 
     # Load prompt from file if it looks like a file path
     prompt = args.prompt

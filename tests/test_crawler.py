@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scraper_ai.config import Settings
-from scraper_ai.crawler import _elapsed, _same_domain, crawl
+from scraper_ai.crawler import _elapsed, _extract_chunk, _same_domain, crawl
 from scraper_ai.models import CrawlResult, PageResult
+from scraper_ai.providers.base import ExtractionError
 
 
 class TestSameDomain:
@@ -271,3 +272,88 @@ class TestCrawl:
 
         assert result.provider == "ollama"
         assert result.prompt == "test"
+
+
+class TestExtractChunk:
+    @pytest.fixture()
+    def default_settings(self):
+        return Settings(scraper_api_key="test-key", extraction_retries=2)
+
+    def test_succeeds_on_first_attempt(self, default_settings):
+        extractor = MagicMock()
+        expected = PageResult(data=[{"name": "Item"}], next_urls=[], detail_urls=[], summary="ok")
+        extractor.analyze_page.return_value = expected
+
+        result = _extract_chunk("html", 1, 1, extractor, None, "prompt", "https://example.com", default_settings)
+
+        assert result == expected
+        assert extractor.analyze_page.call_count == 1
+
+    @patch("scraper_ai.crawler.time.sleep")
+    def test_retry_succeeds_on_second_attempt(self, mock_sleep, default_settings):
+        extractor = MagicMock()
+        expected = PageResult(data=[{"name": "Item"}], next_urls=[], detail_urls=[], summary="ok")
+        extractor.analyze_page.side_effect = [
+            ExtractionError("bad JSON"),
+            expected,
+        ]
+
+        result = _extract_chunk("html", 1, 1, extractor, None, "prompt", "https://example.com", default_settings)
+
+        assert result == expected
+        assert extractor.analyze_page.call_count == 2
+        mock_sleep.assert_called_once_with(2)  # 2^1 = 2s backoff
+
+    @patch("scraper_ai.crawler.time.sleep")
+    def test_retry_exhausted_returns_none(self, _mock_sleep):
+        settings = Settings(scraper_api_key="test-key", extraction_retries=1)
+        extractor = MagicMock()
+        extractor.analyze_page.side_effect = ExtractionError("always fails")
+
+        result = _extract_chunk("html", 1, 1, extractor, None, "prompt", "https://example.com", settings)
+
+        assert result is None
+        assert extractor.analyze_page.call_count == 2  # 1 initial + 1 retry
+
+    @patch("scraper_ai.crawler.time.sleep")
+    def test_fallback_used_after_retries_fail(self, _mock_sleep):
+        settings = Settings(scraper_api_key="test-key", extraction_retries=1)
+        extractor = MagicMock()
+        extractor.analyze_page.side_effect = ExtractionError("primary fails")
+
+        fallback = MagicMock()
+        expected = PageResult(data=[{"name": "Fallback Item"}], next_urls=[], detail_urls=[], summary="ok")
+        fallback.analyze_page.return_value = expected
+
+        result = _extract_chunk("html", 1, 1, extractor, fallback, "prompt", "https://example.com", settings)
+
+        assert result == expected
+        assert extractor.analyze_page.call_count == 2  # exhausted retries
+        assert fallback.analyze_page.call_count == 1
+
+    def test_no_fallback_when_primary_succeeds(self, default_settings):
+        extractor = MagicMock()
+        expected = PageResult(data=[{"name": "Item"}], next_urls=[], detail_urls=[], summary="ok")
+        extractor.analyze_page.return_value = expected
+
+        fallback = MagicMock()
+
+        result = _extract_chunk("html", 1, 1, extractor, fallback, "prompt", "https://example.com", default_settings)
+
+        assert result == expected
+        fallback.analyze_page.assert_not_called()
+
+    @patch("scraper_ai.crawler.time.sleep")
+    def test_fallback_also_fails_returns_none(self, _mock_sleep):
+        settings = Settings(scraper_api_key="test-key", extraction_retries=0)
+        extractor = MagicMock()
+        extractor.analyze_page.side_effect = ExtractionError("primary fails")
+
+        fallback = MagicMock()
+        fallback.analyze_page.side_effect = ExtractionError("fallback fails too")
+
+        result = _extract_chunk("html", 1, 1, extractor, fallback, "prompt", "https://example.com", settings)
+
+        assert result is None
+        assert extractor.analyze_page.call_count == 1
+        assert fallback.analyze_page.call_count == 1
