@@ -1,0 +1,37 @@
+You are scraping the Ollama model registry search results page.
+
+Step 1 - Search results page:
+The page shows a list of model cards from the Ollama model registry.
+Each card displays a model's name, description, capabilities/tags, download count, and when it was last updated.
+
+Extract ALL models visible on the page. Do NOT follow pagination.
+Do NOT put any links in next_urls or detail_urls.
+
+For each model, extract the data in this exact JSON format:
+{
+  "name": "SonofGod/Apex",
+  "description": "Adaptive Autonomy & Esoteric Synthesis",
+  "tags": ["tools"],
+  "pulls": "74",
+  "tag_count": 1,
+  "updated": "11 months ago"
+}
+
+Another example:
+{
+  "name": "cosmonautsdev/Cosm_v1",
+  "description": "Full-stack AI model for rapid app development. Optimized for Python (Django)",
+  "tags": [],
+  "pulls": "205",
+  "tag_count": 1,
+  "updated": "7 months ago"
+}
+
+Rules:
+- Extract the model name exactly as shown (e.g. "username/modelname")
+- Include the full description text
+- Tags are capability labels like "tools", "vision", "embedding" etc. Put them in a list.
+- pulls is the download/pull count as a string
+- tag_count is the number of available tags/versions
+- updated is the relative time string (e.g. "2 months ago", "1 year ago")
+- If a field is not visible, use an empty string "" or empty list []
